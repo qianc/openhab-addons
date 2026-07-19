@@ -12,6 +12,7 @@
  */
 package org.openhab.binding.zwavejs.internal.handler;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -26,7 +27,9 @@ import java.util.List;
 
 import org.eclipse.jdt.annotation.NonNullByDefault;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.openhab.binding.zwavejs.internal.DataUtil;
+import org.openhab.binding.zwavejs.internal.api.dto.Args;
 import org.openhab.binding.zwavejs.internal.api.dto.Event;
 import org.openhab.binding.zwavejs.internal.api.dto.Node;
 import org.openhab.binding.zwavejs.internal.api.dto.Result;
@@ -194,6 +197,53 @@ public class ZwaveJSBridgeHandlerTest {
         } finally {
             handler.dispose();
         }
+    }
+
+    @Test
+    public void testOnEventWithEventMessageValueNotification() throws IOException {
+        final Bridge thing = ZwaveJSBridgeHandlerMock.mockBridge("localhost");
+        final ThingHandlerCallback callback = mock(ThingHandlerCallback.class);
+        final ZwaveJSBridgeHandlerMock handler = ZwaveJSBridgeHandlerMock.createAndInitHandler(callback, thing);
+
+        ZwaveNodeListener nodeListener = mock(ZwaveNodeListener.class);
+        when(nodeListener.getId()).thenReturn(60);
+        handler.registerNodeListener(nodeListener);
+
+        EventMessage eventMessage = DataUtil.fromJson("event_node_60_scene_activation_notification.json",
+                EventMessage.class);
+
+        handler.onEvent(eventMessage);
+
+        try {
+            ArgumentCaptor<Event> eventCaptor = ArgumentCaptor.forClass(Event.class);
+            verify(nodeListener).onNodeStateChanged(eventCaptor.capture());
+            assertEquals(16L, eventCaptor.getValue().args.newValue);
+        } finally {
+            handler.dispose();
+        }
+    }
+
+    @Test
+    public void testNormalizeValueNotificationCopiesValueToNewValue() {
+        Event event = new Event();
+        event.args = new Args();
+        event.args.value = 16;
+
+        Event result = ZwaveJSBridgeHandler.normalizeValueNotification(event);
+
+        assertEquals(16, result.args.newValue);
+    }
+
+    @Test
+    public void testNormalizeValueNotificationKeepsExistingNewValue() {
+        Event event = new Event();
+        event.args = new Args();
+        event.args.newValue = 42;
+        event.args.value = 16;
+
+        Event result = ZwaveJSBridgeHandler.normalizeValueNotification(event);
+
+        assertEquals(42, result.args.newValue);
     }
 
     @Test
